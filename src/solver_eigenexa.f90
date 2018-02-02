@@ -15,7 +15,7 @@ module ek_solver_eigenexa_m
   private
   public :: setup_distributed_matrix_for_eigenexa, eigen_solver_eigenexa, eigen_solver_eigenk, &
        solve_with_general_scalapack_eigenexa, solve_with_general_scalapack_eigenk, &
-       solve_with_general_scalapacknew_eigenk
+       solve_with_general_scalapacknew_eigenk, solve_with_general_eigensx
 
 contains
 
@@ -61,7 +61,6 @@ contains
     time_end = mpi_wtime()
     call add_event('setup_distributed_matrix_for_eigenexa', time_end - time_start)
   end subroutine setup_distributed_matrix_for_eigenexa
-
 
   ! uplo: takes the value of 'L' or 'U' or (not present).
   !       Specifies how the entries of the input matrix is stored.
@@ -438,4 +437,41 @@ contains
     call add_event('solve_with_general_scalapacknew_eigenk:recovery_generalized', time_end - time_start_part)
     call add_event('solve_with_general_scalapacknew_eigenk', time_end - time_start)
   end subroutine solve_with_general_scalapacknew_eigenk
+
+  subroutine solve_with_general_eigensx(n, proc, matrix_A, eigenpairs, matrix_B)
+    integer, intent(in) :: n
+    type(ek_process_t), intent(in) :: proc
+    type(ek_sparse_mat_t), intent(in) :: matrix_A
+    type(ek_sparse_mat_t), intent(in) :: matrix_B
+    type(ek_eigenpairs_types_union_t), intent(out) :: eigenpairs
+
+    integer :: desc_A(desc_size), desc_B(desc_size), desc_A_re(desc_size), desc_B_re(desc_size)
+    integer :: ierr, dim, nx, ny, my_rank
+    double precision, allocatable :: matrix_A_dist(:, :), matrix_B_dist(:, :), matrix_A_redist(:, :), matrix_B_redist(:, :)
+    type(ek_eigenpairs_types_union_t) :: eigenpairs_tmp
+    double precision :: time_start, time_start_part, time_end
+
+    time_start = mpi_wtime()
+    time_start_part = time_start
+
+    call eigen_init()
+    call setup_distributed_matrix('A', proc, n, n, desc_A, matrix_A_dist)
+    call setup_distributed_matrix('B', proc, n, n, desc_B, matrix_B_dist)
+    call distribute_global_sparse_matrix(matrix_A, desc_A, matrix_A_dist)
+    call distribute_global_sparse_matrix(matrix_B, desc_B, matrix_B_dist)
+
+    time_end = mpi_wtime()
+    call add_event('solve_with_general_eigensx:setup_matrices', time_end - time_start_part)
+    time_start_part = time_end
+
+    dim = desc_A(rows_)
+    call eigen_get_matdims(dim, nx, ny)
+    call kmath_eigen_gev(dim, matrix_A_dist, nx, matrix_B_dist, nx, eigenpairs%blacs%values, eigenpairs%blacs%Vectors, nx)
+
+    time_end = mpi_wtime()
+    call add_event('solve_with_general_eigensx:kmath_eigen_gev', time_end - time_start_part)
+    time_start_part = time_end
+
+    call add_event('solve_with_general_eigensx', time_end - time_start)
+  end subroutine solve_with_general_eigensx
 end module ek_solver_eigenexa_m

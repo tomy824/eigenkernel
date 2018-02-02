@@ -150,6 +150,8 @@ contains
       is_solver_valid = arg%is_generalized_problem
     case ('eigensx')
       is_solver_valid = .not. arg%is_generalized_problem
+    case ('general_eigensx')
+      is_solver_valid = arg%is_generalized_problem
     case ('general_scalapack_eigensx')
       is_solver_valid = arg%is_generalized_problem
     case ('general_scalapack_eigens')
